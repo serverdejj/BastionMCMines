@@ -1,0 +1,43 @@
+# BastionMCMines - los mensajes de chat son configurables usando & y &#RRGGBB.
+prefix: '&#F3CC25&lB&#F3D13B&lA&#F2D552&lS&#F2DA68&lT&#F1DE7F&lI&#F1E395&lO&#EFDF7A&lN &#EAD643&lM&#E7D227&lC'
+selection:
+  default-depth: 20
+  max-points: 256
+  max-volume: 350000
+  particles: true
+defaults:
+  reset-seconds: 60
+  bossbar-threshold-seconds: 300
+  bossbar-enabled: true
+  announcement-enabled: false
+  rare-announcement-threshold-percent: 0.01
+  glow-view-distance: 20
+  max-glow-particles-per-tick: 150
+  reset-blocks-per-tick: 2500
+messages:
+  no-permission: '&cSolo los operadores pueden administrar minas.'
+  selection-start: '{prefix} &aSelecciona el primer punto con clic izquierdo y los demás con clic derecho.'
+  point-added: '{prefix} &ePunto &f#{count} &eagregado.'
+  created: '{prefix} &aMina &f{mine} &acreada correctamente.'
+  deleted: '{prefix} &aMina &f{mine} &aeliminada (terreno intacto).'
+  missing-spawn: '{prefix} &eConfigura /mina setspawn {mine} fuera de la mina para reinicios seguros.'
+  invalid-value: '{prefix} &cValor incorrecto. Escribe un número válido o cancelar.'
+  chat-prompt: '{prefix} &eEscribe el nuevo valor en el chat, o &ccancelar&e.'
+  saved: '{prefix} &aCambios guardados.'
+  reward-rare: '&6&l✦ ¡RECOMPENSA LEGENDARIA! &f{player} &7obtuvo &d{item} &7en &e{mine} &8(&c{chance}%&8)'
+  reset-complete: '{prefix} &fLa &e{mine} &fse ha reiniciado.'
+  bossbar: '&6⛏ {mine} &f| Reinicio en &e{time}'
+  access-denied: '{prefix} &cNo tienes acceso a esta mina.'
+  invalid-command: '{prefix} &cComando incorrecto. Usa /mina help.'
+menus:
+  list-title: '&#F3CC25&lBASTION MC &8| &fMinas'
+  manage-title: '&#F3CC25&lMina &8| &f{mine}'
+  blocks-title: '&8Bloques: &e{mine}'
+  rewards-title: '&8Recompensas: &e{mine}'
+  glow-title: '&8Brillo: &e{mine}'
+  colors-title: '&8Colores: &e{block}'
+  confirm-title: '&4Confirmar eliminación'
+  filler-material: BLACK_STAINED_GLASS_PANE
+  sounds:
+    click: UI_BUTTON_CLICK
+    success: ENTITY_PLAYER_LEVELUP

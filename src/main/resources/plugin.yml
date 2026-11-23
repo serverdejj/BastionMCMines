@@ -1,0 +1,15 @@
+name: BastionMCMines
+version: 1.0.0
+main: com.bastionmc.mines.BastionMCMines
+api-version: '1.21'
+author: BASTION MC
+softdepend: [PlaceholderAPI, WorldGuard, LuckPerms]
+commands:
+  mina:
+    description: Administración de minas (solo OP)
+    usage: /mina crear <nombre> <public|private>
+  minas:
+    description: Menú de minas (solo OP)
+    usage: /minas menu
+  minareload:
+    description: Recargar configuración (solo OP)
