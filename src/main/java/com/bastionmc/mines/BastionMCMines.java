@@ -136,12 +136,70 @@ public final class BastionMCMines extends JavaPlugin implements Listener, Comman
             }
         }.runTaskTimer(this,1L,1L);
     }
-    void glowTick(){if(mines.isEmpty()||Bukkit.getOnlinePlayers().isEmpty())return;int cap=getConfig().getInt("defaults.max-glow-particles-per-tick",150);int distance=getConfig().getInt("defaults.glow-view-distance",20),used=0;for(Player viewer:Bukkit.getOnlinePlayers()){Mine m=at(viewer.getLocation());if(m==null||m.glow.isEmpty())continue;World w=viewer.getWorld();int vx=viewer.getLocation().getBlockX(),vy=viewer.getLocation().getBlockY(),vz=viewer.getLocation().getBlockZ();for(int count=0;count<180&&used<cap;count++){int x=vx+ThreadLocalRandom.current().nextInt(-distance,distance+1),y=vy+ThreadLocalRandom.current().nextInt(-Math.min(10,distance),Math.min(10,distance)+1),z=vz+ThreadLocalRandom.current().nextInt(-distance,distance+1);if(y<w.getMinHeight()||y>=w.getMaxHeight())continue;Block b=w.getBlockAt(x,y,z);String hex=m.glow.get(b.getType());if(hex==null||!m.contains(b.getLocation()))continue;BlockFace face=null;for(BlockFace f:List.of(BlockFace.UP,BlockFace.NORTH,BlockFace.SOUTH,BlockFace.EAST,BlockFace.WEST,BlockFace.DOWN)){if(!b.getRelative(f).getType().isOccluding()){face=f;break;}}if(face==null)continue;
-                Vector target=new Vector(x+.5,y+.5,z+.5);
-                // Ray tracing prevents showing particles on the far side of opaque walls.
-                Vector direction=target.clone().subtract(viewer.getEyeLocation().toVector());double length=direction.length();if(length<=0.01)continue;var hit=w.rayTraceBlocks(viewer.getEyeLocation(),direction,length,FluidCollisionMode.NEVER,true);if(hit!=null&&hit.getHitBlock()!=null&&!hit.getHitBlock().equals(b))continue;
-                try{java.awt.Color c=java.awt.Color.decode(hex);Location loc=b.getLocation().add(.5+face.getModX()*.52,.5+face.getModY()*.52,.5+face.getModZ()*.52);viewer.spawnParticle(Particle.DUST,loc,2,.19,.19,.19,new Particle.DustOptions(Color.fromRGB(c.getRed(),c.getGreen(),c.getBlue()),1.15f));used+=2;}catch(Exception ignored){}
-            }} }
+    // Particulas de color sobre minerales expuestos, nunca un Glowing que atraviese paredes.
+    // Se admite un jugador sobre el suelo (Y=top+1); Mine.contains solo cubre los bloques de piedra.
+    void glowTick(){
+        if(mines.isEmpty() || Bukkit.getOnlinePlayers().isEmpty()) return;
+        int maxParticles=Math.max(0,getConfig().getInt("defaults.max-glow-particles-per-tick",150));
+        int radius=Math.max(2,Math.min(16,getConfig().getInt("defaults.glow-view-distance",20)));
+        int rendered=0;
+        for(Player viewer:Bukkit.getOnlinePlayers()){
+            if(rendered>=maxParticles) break;
+            Location eye=viewer.getEyeLocation();
+            Location feet=viewer.getLocation();
+            World world=viewer.getWorld();
+            Mine mine=null;
+            for(Mine candidate:mines.values()){
+                if(candidate.world.equals(world.getName()) && candidate.insideXZ(feet.getBlockX(),feet.getBlockZ())
+                   && feet.getBlockY()<=candidate.top+3 && feet.getBlockY()>candidate.top-candidate.depth-2
+                   && !candidate.glow.isEmpty()) {mine=candidate;break;}
+            }
+            if(mine==null) continue;
+            int cx=feet.getBlockX(),cy=feet.getBlockY(),cz=feet.getBlockZ();
+            int highest=Math.min(mine.top,cy+2);
+            int lowest=Math.max(mine.top-mine.depth+1,cy-5);
+            // Recorremos puntos cercanos primero, en lugar de probar 180 posiciones al azar
+            // en toda la mina; de este modo se ven las vetas presentes en la superficie.
+            for(int ring=0;ring<=radius && rendered<maxParticles;ring++){
+                for(int dx=-ring;dx<=ring && rendered<maxParticles;dx++){
+                    for(int dz=-ring;dz<=ring && rendered<maxParticles;dz++){
+                        if(Math.max(Math.abs(dx),Math.abs(dz))!=ring) continue;
+                        int x=cx+dx,z=cz+dz;
+                        if(!mine.insideXZ(x,z)) continue;
+                        for(int y=highest;y>=lowest && rendered<maxParticles;y--){
+                            Block block=world.getBlockAt(x,y,z);
+                            String hex=mine.glow.get(block.getType());
+                            if(hex==null) continue;
+                            Color particleColor;
+                            try{java.awt.Color parsed=java.awt.Color.decode(hex);particleColor=Color.fromRGB(parsed.getRed(),parsed.getGreen(),parsed.getBlue());}
+                            catch(IllegalArgumentException ex){continue;}
+                            for(BlockFace face:List.of(BlockFace.UP,BlockFace.NORTH,BlockFace.SOUTH,BlockFace.EAST,BlockFace.WEST,BlockFace.DOWN)){
+                                if(block.getRelative(face).getType().isOccluding())continue;
+                                double fx=x+.5+face.getModX()*.515, fy=y+.5+face.getModY()*.515, fz=z+.5+face.getModZ()*.515;
+                                Location center=new Location(world,fx,fy,fz);
+                                Vector dir=center.toVector().subtract(eye.toVector());
+                                double len=dir.length();
+                                if(len<.01||len>radius+2)continue;
+                                var trace=world.rayTraceBlocks(eye,dir,len,FluidCollisionMode.NEVER,true);
+                                if(trace!=null&&trace.getHitBlock()!=null&&!trace.getHitBlock().equals(block))continue;
+                                // Cuatro esquinas de la cara visible hacen el mineral mas reconocible.
+                                for(int corner=0;corner<4 && rendered<maxParticles;corner++){
+                                    double offsetA=(corner%2==0?-.32:.32),offsetB=(corner/2==0?-.32:.32);
+                                    double px=fx,py=fy,pz=fz;
+                                    if(face==BlockFace.UP||face==BlockFace.DOWN){px+=offsetA;pz+=offsetB;}
+                                    else if(face==BlockFace.NORTH||face==BlockFace.SOUTH){px+=offsetA;py+=offsetB;}
+                                    else{pz+=offsetA;py+=offsetB;}
+                                    viewer.spawnParticle(Particle.DUST,px,py,pz,1,0,0,0,0,new Particle.DustOptions(particleColor,1.5f));
+                                    rendered++;
+                                }
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
     // Menús GUI. Los ítems colocados desde el inventario se COPIAN, no se consumen.
     static class Screen implements InventoryHolder{final String type,mine,block;final int page;final Inventory inv;Screen(String type,String mine,String block,int page,String title){this.type=type;this.mine=mine;this.block=block;this.page=page;this.inv=Bukkit.createInventory(this,54,title);}@Override public Inventory getInventory(){return inv;}}
     ItemStack item(Material mat,String title,String... lore){ItemStack stack=new ItemStack(mat);ItemMeta meta=stack.getItemMeta();meta.setDisplayName(color(title));meta.setLore(Arrays.stream(lore).map(this::color).toList());stack.setItemMeta(meta);return stack;}

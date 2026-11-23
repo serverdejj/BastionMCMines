@@ -11,8 +11,8 @@ defaults:
   bossbar-enabled: true
   announcement-enabled: false
   rare-announcement-threshold-percent: 0.01
-  glow-view-distance: 20
-  max-glow-particles-per-tick: 150
+  glow-view-distance: 12
+  max-glow-particles-per-tick: 240
   reset-blocks-per-tick: 2500
 messages:
   no-permission: '&cSolo los operadores pueden administrar minas.'

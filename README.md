@@ -17,3 +17,10 @@ Proyecto Java 21, Maven. Ejecuta `mvn clean package` o sube el contenido a GitHu
 **Placeholders PAPI:** `%BastionMinas_tiempo_reinicio_minapvp%`, `%BastionMinas_nombre_minapvp%`, `%BastionMinas_jugadores_minapvp%`, `%BastionMinas_bloques_restantes_minapvp%`, `%BastionMinas_porcentaje_minapvp%`, `%BastionMinas_estado_minapvp%`. FancyHolograms necesita actualizar líneas con placeholders.
 
 **Notas de implementación:** La regeneración reemplaza TODO el volumen de la mina. Respaldar el mundo antes de crear la primera mina. La GUI utiliza slots convencionales y nombres configurables, mientras algunos textos de botones siguen definidos en código en esta primera versión. La integración completa de permisos de construcción con regiones de WorldGuard superpuestas depende de sus prioridades/flags y debe probarse antes de abrir al público. Los materiales admitidos para el relleno son bloques Bukkit normales (no CustomBlockData de terceros). Esta entrega contiene código fuente y workflow; la compilación local no ha sido verificada en este entorno.
+
+## Corrección del brillo de minerales (versión de prueba)
+El brillo es un efecto de partículas sobre caras expuestas, **no el contorno luminoso vanilla**.
+Se corrigió la detección de jugadores que están parados SOBRE la mina y el muestreo aleatorio que impedía ver minerales cercanos.
+La visualización depende de los ajustes de partículas del cliente; usa Partículas: Todas para probarlo.
+El brillo conserva su color por mina/material y no revela minerales a través de paredes.
+Esta compilación no fue probada en un servidor Purpur real; compila con GitHub Actions y prueba sobre una copia del mundo.
