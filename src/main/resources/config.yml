@@ -41,3 +41,8 @@ menus:
   sounds:
     click: UI_BUTTON_CLICK
     success: ENTITY_PLAYER_LEVELUP
+
+# Integration: one polygonal region per mine, alongside existing WorldGuard regions.
+worldguard:
+  mine-regions-enabled: true
+  minimum-mine-priority: 100

@@ -24,3 +24,18 @@ Se corrigió la detección de jugadores que están parados SOBRE la mina y el mu
 La visualización depende de los ajustes de partículas del cliente; usa Partículas: Todas para probarlo.
 El brillo conserva su color por mina/material y no revela minerales a través de paredes.
 Esta compilación no fue probada en un servidor Purpur real; compila con GitHub Actions y prueba sobre una copia del mundo.
+
+
+## WorldGuard: regiones minables sin tocar la región PvP
+Esta revisión añade una región auxiliar por mina con ID `bastionmine_<nombre>`: por ejemplo
+`bastionmine_minapvp`, sin sustituir la región cuadrada `minapvp`. Cada auxiliar
+utiliza el mismo polígono horizontal de la mina y su rango vertical configurado;
+permite `block-break`, deniega `block-place` y **no modifica la flag PvP**.
+Al habilitar el plugin se sincronizan las minas existentes de `plugins/BastionMCMines/mines/*.yml`.
+No borrar esta carpeta al actualizar. Si no están disponibles WorldGuard/WorldEdit,
+la sincronización no se realizará. Revise los logs para errores de integración.
+La prioridad de regiones auxiliares se establece por encima de regiones solapadas.
+Si utiliza otras protecciones de terceros, revise sus reglas por separado.
+
+**Instalación:** antes de reemplazar el JAR realice copia de `plugins/BastionMCMines/`
+y del mundo. Sustituya solo el JAR y reinicie el servidor.

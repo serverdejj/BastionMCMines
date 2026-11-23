@@ -37,6 +37,7 @@ public final class BastionMCMines extends JavaPlugin implements Listener, Comman
     final Set<String> broadcastAfterReset=new HashSet<>();
     File minesFolder;
     int glowCursor=0;
+    WorldGuardMineBridge worldGuardBridge;
     String PREFIX;
     static final String WAND="§6§lBASTION §e§lMINAS §7| §fSelector";
     static final List<String> COLOR_NAMES=List.of("WHITE","ORANGE","MAGENTA","LIGHT_BLUE","YELLOW","LIME","PINK","GRAY","LIGHT_GRAY","CYAN","PURPLE","BLUE","BROWN","GREEN","RED","BLACK");
@@ -47,6 +48,16 @@ public final class BastionMCMines extends JavaPlugin implements Listener, Comman
         saveDefaultConfig(); PREFIX=getConfig().getString("prefix","BASTION MC");
         minesFolder=new File(getDataFolder(),"mines"); minesFolder.mkdirs();
         loadMines();
+        if (Bukkit.getPluginManager().isPluginEnabled("WorldGuard")
+                && getConfig().getBoolean("worldguard.mine-regions-enabled", true)) {
+            try {
+                worldGuardBridge = new WorldGuardMineBridge(this);
+                for (Mine mine : mines.values()) worldGuardBridge.sync(mine);
+                getLogger().info("Regiones poligonales auxiliares de WorldGuard sincronizadas.");
+            } catch (Exception | LinkageError error) {
+                getLogger().severe("No se pudo integrar WorldGuard: " + error.getMessage());
+            }
+        }
         for(String s:List.of("mina","minas","minareload")) {PluginCommand cmd=getCommand(s);if(cmd!=null){cmd.setExecutor(this);cmd.setTabCompleter(this);}}
         Bukkit.getPluginManager().registerEvents(this,this);
         if(Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI"))new MinePlaceholders().register();
@@ -71,6 +82,10 @@ public final class BastionMCMines extends JavaPlugin implements Listener, Comman
         if(op.equals("menu")){listMenu(p,0);return true;}
         if(op.equals("crear")){if(a.length!=3||(!a[2].equalsIgnoreCase("public")&&!a[2].equalsIgnoreCase("private"))){syntax(p);return true;}String key=key(a[1]);if(!key.matches("[a-z0-9_-]{1,32}")||mines.containsKey(key)){tell(p,"{prefix} &cNombre inválido o ya existente.");return true;}Selection s=new Selection(key,a[2].equalsIgnoreCase("private"),p.getWorld().getName());selecting.put(p.getUniqueId(),s);ItemStack wand=new ItemStack(Material.GOLDEN_AXE);ItemMeta meta=wand.getItemMeta();meta.setDisplayName(WAND);meta.setLore(List.of("§7Clic izquierdo: primer punto","§7Clic derecho: siguiente punto","§e/mina finish"));wand.setItemMeta(meta);p.getInventory().addItem(wand);tell(p,msg("selection-start"));return true;}
         if(op.equals("finish")){Selection s=selecting.get(p.getUniqueId());if(s==null||s.points.size()<3){tell(p,"{prefix} &cMarca al menos 3 puntos con el hacha dorada.");return true;}if(!Objects.equals(s.world,p.getWorld().getName())){tell(p,"{prefix} &cDebes estar en el mundo de la selección.");return true;}if(selfCross(s.points)){tell(p,"{prefix} &cEl perímetro se cruza consigo mismo; corrige la selección.");return true;}int depth=getConfig().getInt("selection.default-depth",20);Mine m=new Mine(s.name,s.world,s.priv,s.y,depth);m.points.addAll(s.points);long volume=(long)m.areaEstimate()*depth;if(volume>getConfig().getLong("selection.max-volume",350000)){tell(p,"{prefix} &cSelección demasiado grande: "+volume+" bloques estimados.");return true;}for(Mine other:mines.values()){if(other.world.equals(m.world)&&overlap(m,other)){tell(p,"{prefix} &cSe superpone con otra mina: "+other.name);return true;}}
+            if (worldGuardBridge != null && !worldGuardBridge.sync(m)) {
+                tell(p,"{prefix} &cNo se pudo crear la región minable de WorldGuard. Revisa la consola.");
+                return true;
+            }
             mines.put(m.id,m);save(m);selecting.remove(p.getUniqueId());beginReset(m,false);tell(p,fmt("created",m));tell(p,fmt("missing-spawn",m));return true;}
         if(op.equals("listar")){tell(p,"{prefix} &eMinas: &f"+String.join(", ",mines.keySet()));return true;}
         if(a.length<2){syntax(p);return true;}Mine m=mines.get(key(a[1]));if(m==null){tell(p,"{prefix} &cNo existe esa mina.");return true;}
@@ -78,7 +93,7 @@ public final class BastionMCMines extends JavaPlugin implements Listener, Comman
             case "info" -> tell(p,"{prefix} &e"+m.name+" &7| "+(m.priv?"private":"public")+" | "+m.depth+" bloques | "+m.interval+"s | "+m.points.size()+" puntos");
             case "setspawn" -> {if(!p.getWorld().getName().equals(m.world)){tell(p,"{prefix} &cMundo incorrecto.");break;}if(m.contains(p.getLocation())){tell(p,"{prefix} &cEstablece el spawn FUERA de la mina.");break;}m.spawn=p.getLocation().clone();save(m);tell(p,"{prefix} &aSpawn guardado fuera de la mina.");}
             case "reset" -> {beginReset(m,true);tell(p,"{prefix} &aRegeneración iniciada.");}
-            case "profundidad" -> {if(a.length<3){syntax(p);break;}try{int n=Integer.parseInt(a[2]);if(n<1||n>128)throw new NumberFormatException();m.depth=n;save(m);tell(p,"{prefix} &aProfundidad actualizada a "+n+". Se aplicará al siguiente reinicio.");}catch(NumberFormatException ex){tell(p,"{prefix} &cProfundidad válida: 1–128.");}}
+            case "profundidad" -> {if(a.length<3){syntax(p);break;}try{int n=Integer.parseInt(a[2]);if(n<1||n>128)throw new NumberFormatException();m.depth=n;if(worldGuardBridge!=null)worldGuardBridge.sync(m);save(m);tell(p,"{prefix} &aProfundidad actualizada a "+n+". Se aplicará al siguiente reinicio.");}catch(NumberFormatException ex){tell(p,"{prefix} &cProfundidad válida: 1–128.");}}
             case "eliminar" -> confirmDelete(p,m);
             case "editar" -> manageMenu(p,m);
             default -> syntax(p);
@@ -228,7 +243,7 @@ public final class BastionMCMines extends JavaPlugin implements Listener, Comman
         case "blocks"->{if(n<0||n>100){tell(p,msg("invalid-value"));editing.put(p.getUniqueId(),ed);return;}m.blocks.put(ed.mat(),n);save(m);blocksMenu(p,m,0);}
         case "reward"->{if(n<.001||n>100){tell(p,msg("invalid-value"));editing.put(p.getUniqueId(),ed);return;}List<Reward> rs=m.rewards.get(ed.mat());if(rs!=null&&ed.index()<rs.size()){rs.get(ed.index()).chance=n;save(m);}rewardsMenu(p,m,ed.mat(),0);}
         case "reset"->{if(n<1||n>10080||Math.floor(n)!=n){tell(p,msg("invalid-value"));editing.put(p.getUniqueId(),ed);return;}m.interval=(long)n*60;m.remaining=m.interval;save(m);resetMenu(p,m);}
-        case "depth"->{if(n<1||n>128||Math.floor(n)!=n){tell(p,msg("invalid-value"));editing.put(p.getUniqueId(),ed);return;}m.depth=(int)n;save(m);optionsMenu(p,m);}
+        case "depth"->{if(n<1||n>128||Math.floor(n)!=n){tell(p,msg("invalid-value"));editing.put(p.getUniqueId(),ed);return;}m.depth=(int)n;if(worldGuardBridge!=null)worldGuardBridge.sync(m);save(m);optionsMenu(p,m);}
     }tell(p,msg("saved"));}
 
     @EventHandler public void click(InventoryClickEvent e){if(!(e.getView().getTopInventory().getHolder() instanceof Screen s))return;e.setCancelled(true);if(!(e.getWhoClicked() instanceof Player p)||!p.isOp())return;Mine m=mines.get(s.mine);int raw=e.getRawSlot();boolean right=e.isRightClick();if(raw>=e.getView().getTopInventory().getSize()){
@@ -240,7 +255,7 @@ public final class BastionMCMines extends JavaPlugin implements Listener, Comman
         if(m==null)return;
         if(raw==49&&!s.type.equals("manage")){if(s.type.equals("colors")){glowMenu(p,m,0);}else if(s.type.equals("rewards")){rewardsBlocksMenu(p,m,0);}else manageMenu(p,m);return;}
         if(s.type.equals("manage")){switch(raw){case 10->blocksMenu(p,m,0);case 12->rewardsBlocksMenu(p,m,0);case 14->resetMenu(p,m);case 16->accessMenu(p,m);case 28->glowMenu(p,m,0);case 30->announceMenu(p,m);case 32->spawnMenu(p,m);case 34->optionsMenu(p,m);case 40->confirmDelete(p,m);case 49->listMenu(p,0);}return;}
-        if(s.type.equals("confirm")){if(raw==20){mines.remove(m.id);File file=new File(minesFolder,m.id+".yml");if(!file.delete())getLogger().warning("No se pudo borrar "+file);tell(p,fmt("deleted",m));listMenu(p,0);}else if(raw==24)manageMenu(p,m);return;}
+        if(s.type.equals("confirm")){if(raw==20){if(worldGuardBridge!=null)worldGuardBridge.remove(m);mines.remove(m.id);File file=new File(minesFolder,m.id+".yml");if(!file.delete())getLogger().warning("No se pudo borrar "+file);tell(p,fmt("deleted",m));listMenu(p,0);}else if(raw==24)manageMenu(p,m);return;}
         if(s.type.equals("reset")){if(raw==20)edit(p,m,"reset",null,0);else if(raw==22){m.boss=!m.boss;save(m);resetMenu(p,m);}else if(raw==24){beginReset(m,true);resetMenu(p,m);}return;}
         if(s.type.equals("access")&&raw==22){m.priv=!m.priv;save(m);accessMenu(p,m);return;}
         if(s.type.equals("announce")&&raw==22){m.announce=!m.announce;save(m);announceMenu(p,m);return;}
