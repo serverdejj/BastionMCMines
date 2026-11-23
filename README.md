@@ -39,3 +39,6 @@ Si utiliza otras protecciones de terceros, revise sus reglas por separado.
 
 **Instalación:** antes de reemplazar el JAR realice copia de `plugins/BastionMCMines/`
 y del mundo. Sustituya solo el JAR y reinicie el servidor.
+
+## Corrección de carga tardía de mundos (DeepVoid)
+Cuando el mundo `Spawn` se carga después de BastionMCMines, se reintenta la sincronización de la región auxiliar de WorldGuard al cargar el mundo y 40 ticks después del inicio. No elimina ni modifica los datos de `plugins/BastionMCMines/mines/`. Haz una copia de seguridad antes de actualizar.

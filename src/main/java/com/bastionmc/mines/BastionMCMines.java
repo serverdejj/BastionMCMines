@@ -15,6 +15,7 @@ import org.bukkit.event.block.*;
 import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.inventory.*;
 import org.bukkit.event.player.*;
+import org.bukkit.event.world.WorldLoadEvent;
 import org.bukkit.inventory.*;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -53,18 +54,39 @@ public final class BastionMCMines extends JavaPlugin implements Listener, Comman
             try {
                 worldGuardBridge = new WorldGuardMineBridge(this);
                 for (Mine mine : mines.values()) worldGuardBridge.sync(mine);
-                getLogger().info("Regiones poligonales auxiliares de WorldGuard sincronizadas.");
+                getLogger().info("Sincronización inicial de regiones auxiliares de WorldGuard intentada.");
             } catch (Exception | LinkageError error) {
                 getLogger().severe("No se pudo integrar WorldGuard: " + error.getMessage());
             }
         }
         for(String s:List.of("mina","minas","minareload")) {PluginCommand cmd=getCommand(s);if(cmd!=null){cmd.setExecutor(this);cmd.setTabCompleter(this);}}
         Bukkit.getPluginManager().registerEvents(this,this);
+        // DeepVoid and other world managers may load secondary worlds after
+        // BastionMCMines.onEnable(). Retry after startup, without recreating mines.
+        Bukkit.getScheduler().runTaskLater(this, this::syncLoadedMineRegions, 40L);
         if(Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI"))new MinePlaceholders().register();
         Bukkit.getScheduler().runTaskTimer(this,this::tick,20L,20L);
         Bukkit.getScheduler().runTaskTimer(this,this::glowTick,10L,10L);
         getLogger().info("BastionMCMines cargado: "+mines.size()+" minas.");
     }
+    private void syncLoadedMineRegions() {
+        if (worldGuardBridge == null) return;
+        for (Mine mine : mines.values()) {
+            if (Bukkit.getWorld(mine.world) != null) worldGuardBridge.sync(mine);
+        }
+    }
+
+    @EventHandler public void onMineWorldLoaded(WorldLoadEvent event) {
+        if (worldGuardBridge == null) return;
+        String loadedWorld = event.getWorld().getName();
+        // Run on the next tick so WorldGuard can initialize its region manager.
+        Bukkit.getScheduler().runTaskLater(this, () -> {
+            for (Mine mine : mines.values()) {
+                if (mine.world.equals(loadedWorld)) worldGuardBridge.sync(mine);
+            }
+        }, 20L);
+    }
+
     @Override public void onDisable(){for(BossBar b:bars.values())b.removeAll();for(Mine m:mines.values())save(m);}
     String color(String s){if(s==null)return "";s=s.replace("{prefix}",PREFIX);java.util.regex.Matcher matcher=java.util.regex.Pattern.compile("&#([0-9a-fA-F]{6})").matcher(s);StringBuilder sb=new StringBuilder();while(matcher.find()){String hex=matcher.group(1);StringBuilder rep=new StringBuilder("§x");for(char c:hex.toCharArray())rep.append('§').append(c);matcher.appendReplacement(sb,java.util.regex.Matcher.quoteReplacement(rep.toString()));}matcher.appendTail(sb);return ChatColor.translateAlternateColorCodes('&',sb.toString());}
     String msg(String key){return color(getConfig().getString("messages."+key,key));}
