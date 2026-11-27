@@ -42,3 +42,6 @@ y del mundo. Sustituya solo el JAR y reinicie el servidor.
 
 ## Corrección de carga tardía de mundos (DeepVoid)
 Cuando el mundo `Spawn` se carga después de BastionMCMines, se reintenta la sincronización de la región auxiliar de WorldGuard al cargar el mundo y 40 ticks después del inicio. No elimina ni modifica los datos de `plugins/BastionMCMines/mines/`. Haz una copia de seguridad antes de actualizar.
+
+## Corrección 1.0.2
+El botón Drops originales (slot 47) ahora se procesa antes del filtro de slots de contenido. Alterna y guarda el reemplazo por material y mina; actualiza el icono sin reabrir el inventario. No requiere migración de configuración ni de minas.
